@@ -1,6 +1,7 @@
 use std::ptr;
 
 use pcap::{Capture, Device};
+use tokio::sync::mpsc::Sender;
 
 
 #[repr(C, packed)]
@@ -69,13 +70,18 @@ impl From<RawUrbHeader> for UrbHeader {
             start_frame: i32::from_ne_bytes(raw_urbheader.start_frame),
             xfer_flags: u32::from_ne_bytes(raw_urbheader.xfer_flags),
             iso_ndesc: u32::from_ne_bytes(raw_urbheader.iso_ndesc),
-
         }
     }
 }
 
-/* Define Constants */
+pub struct UrbPacket {
+    header: UrbHeader,
+    data: Option<Vec<u8>>
+}
+
+/* Define Constants, Instance Variables */
 const URB_PACKET_HDRLEN: usize = size_of::<RawUrbHeader>();
+
 
 fn read_urb_header(data: &[u8]) -> UrbHeader {
     unsafe {
@@ -84,7 +90,7 @@ fn read_urb_header(data: &[u8]) -> UrbHeader {
     }
 }
 
-pub fn capture(device_name: &str) {
+async fn capture_core(device_name: String, tx: Sender<UrbPacket>) {
     /* Get the Capture Device */
     let device_list = Device::list().unwrap();
     let device = device_list.into_iter()
@@ -98,11 +104,31 @@ pub fn capture(device_name: &str) {
         .promisc(true)
         .open().unwrap();
 
-    /* Capture the Packets */
+    /* Capture the Packets and URB Data from PCAP */
     while let Ok(pcap_packet) = capture_stream.next_packet() {
-        /* Get URB Data from PCAP */
         let urb_packet_header = read_urb_header(&pcap_packet.data[0..URB_PACKET_HDRLEN]);
-        let urb_packet_data = &pcap_packet.data[URB_PACKET_HDRLEN..(URB_PACKET_HDRLEN + urb_packet_header.data_length as usize)];
-        println!("URB Packet:\n{:?}, Data: {:?}\n", urb_packet_header, String::from_utf8_lossy(urb_packet_data));
+        let urb_data_length = urb_packet_header.data_length as usize;
+        
+        /* Construct Payload Structure for Async Transmission */
+        let urb_payload = UrbPacket {
+            header: urb_packet_header,
+            data: if urb_data_length > 0 { 
+                /* Get Appropriate Data Region */
+                let urb_packet_data = &pcap_packet.data[URB_PACKET_HDRLEN..(URB_PACKET_HDRLEN + urb_data_length)];
+                Some(urb_packet_data.to_vec()) 
+            } else {
+                /* There's no Data */ 
+                None 
+            },
+        };
+
+        /* Transmit Packet using Tokio MPSC Channel */
+        tx.send(urb_payload).await.unwrap();
     }
+}
+
+pub fn capture(device_name: String, tx: Sender<UrbPacket>) {
+    tokio::spawn(async move {
+        capture_core(device_name, tx).await;
+    });
 }
