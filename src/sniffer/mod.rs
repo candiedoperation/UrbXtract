@@ -27,6 +27,7 @@ pub(crate) struct RawUrbHeader {
     pub(crate) iso_ndesc: [u8; 4],
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct UrbHeader {
     pub id: u64,
@@ -35,8 +36,8 @@ pub struct UrbHeader {
     pub endpoint: u8,
     pub device: u8,
     pub bus_id: u16,
-    pub setup_flag: char,
-    pub data_flag: char,
+    pub setup_flag: u8,
+    pub data_flag: u8,
     pub timestamp_sec: i64,
     pub timestamp_usec: i32,
     pub status: i32,
@@ -58,8 +59,8 @@ impl From<RawUrbHeader> for UrbHeader {
             endpoint: raw_urbheader.endpoint,
             device: raw_urbheader.device,
             bus_id: u16::from_ne_bytes(raw_urbheader.bus_id),
-            setup_flag: (raw_urbheader.setup_flag as char),
-            data_flag: (raw_urbheader.data_flag as char),
+            setup_flag: raw_urbheader.setup_flag,
+            data_flag: raw_urbheader.data_flag,
             timestamp_sec: i64::from_ne_bytes(raw_urbheader.timestamp_sec),
             timestamp_usec: i32::from_ne_bytes(raw_urbheader.timestamp_usec),
             status: i32::from_ne_bytes(raw_urbheader.status),
@@ -74,9 +75,10 @@ impl From<RawUrbHeader> for UrbHeader {
     }
 }
 
+#[derive(Debug)]
 pub struct UrbPacket {
-    header: UrbHeader,
-    data: Option<Vec<u8>>
+    pub header: UrbHeader,
+    pub data: Option<Vec<u8>>
 }
 
 /* Define Constants, Instance Variables */
