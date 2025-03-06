@@ -1,0 +1,117 @@
+use std::collections::HashMap;
+
+use crate::sniffer::UrbPacket;
+use tokio::sync::mpsc::Sender;
+
+use super::{ReconstructedTransmission, ReconstructionModule};
+
+struct SerialDatastore {
+    construct_sources: Vec<UrbPacket>,
+    combined_payload: String,
+}
+
+pub struct Reconstructor {
+    module_tx: Sender<ReconstructedTransmission>,
+    datastore: HashMap<String, SerialDatastore>, /* DeviceId, DataStore */
+}
+
+impl Reconstructor {
+    async fn dispatch_packet(&mut self, device_id: String) {
+        /* Dispatch the Constructed Datastore */
+        match self.datastore.get(&device_id) {
+            None => return,
+            Some(dispatch_data) => {
+                let send_request = self.module_tx.send(ReconstructedTransmission {
+                    combined_payload: dispatch_data.combined_payload.clone(),
+                    sources: vec![], /* For now, we'd prolly need Box<> for efficiency */
+                });
+
+                /* Wait for the request to succeed */
+                send_request.await.unwrap();
+                self.datastore.insert(
+                    String::from(device_id),
+                    SerialDatastore {
+                        construct_sources: vec![],
+                        combined_payload: String::from(""),
+                    }
+                );
+            }
+        }
+    }
+}
+
+impl ReconstructionModule for Reconstructor {
+    fn new(module_tx: Sender<ReconstructedTransmission>) -> Self {
+        Self {
+            module_tx,
+            datastore: HashMap::new(),
+        }
+    }
+
+    async fn consume_packet(&mut self, urb_packet: crate::sniffer::UrbPacket) {
+        let urb_header = &urb_packet.header;
+        let urb_data = urb_packet.data.as_ref().unwrap();
+        let strbuild_result = String::from_utf8(urb_data.to_vec());
+
+        /* Construct Datastore */
+        let device_id = &format!("{}:{}", urb_header.bus_id, urb_header.device);
+        if !self.datastore.contains_key(device_id) {
+            self.datastore.insert(
+                String::from(device_id),
+                SerialDatastore {
+                    construct_sources: vec![],
+                    combined_payload: String::from(""),
+                },
+            );
+        }
+
+        let datastore = self.datastore.get(device_id).unwrap();
+        if strbuild_result.is_err() {
+            if datastore.combined_payload != "" {
+                /* We have data from previous packets, dispatch it */
+                self.dispatch_packet(String::from(device_id)).await;
+            }
+
+            /* Construct New datastore */
+            self.datastore.insert(
+                String::from(device_id),
+                SerialDatastore {
+                    construct_sources: vec![urb_packet],
+                    combined_payload: String::from("Non-UTF8 Binary Data"),
+                },
+            );
+
+            /* Dispatch the Packet */
+            self.dispatch_packet(String::from(device_id)).await;
+        } else {
+            /* We have a valid UTF8 Serial String */
+            let parsed_strdata = strbuild_result.unwrap();
+            
+            /* Expand existing datastore */
+            let datastore = self.datastore.get_mut(device_id).unwrap();
+            datastore.combined_payload += &parsed_strdata;
+            datastore.construct_sources.push(urb_packet);
+            
+            /* If \r\n or \n, dispatch the packet */
+            if parsed_strdata.ends_with("\n") {
+                self.dispatch_packet(String::from(device_id)).await;
+            }
+
+            // if parsed_strdata.ends_with("\n") {
+            //     /* Dispatch Previous Packet */
+            //     self.dispatch_packet(String::from(device_id)).await;
+
+            //     /* Construct new data store */
+            //     self.datastore.insert(
+            //         String::from(device_id),
+            //         SerialDatastore {
+            //             construct_sources: vec![urb_packet],
+            //             combined_payload: parsed_strdata,
+            //         },
+            //     );
+            // } else {
+                
+            // }
+        }
+    }
+}

@@ -1,7 +1,7 @@
 use std::ptr;
 
 use pcap::{Capture, Device};
-use tokio::sync::mpsc::Sender;
+use tokio::{sync::mpsc::Sender, task::JoinHandle};
 
 
 #[repr(C, packed)]
@@ -129,8 +129,8 @@ async fn capture_core(device_name: String, tx: Sender<UrbPacket>) {
     }
 }
 
-pub fn capture(device_name: String, tx: Sender<UrbPacket>) {
+pub fn capture(device_name: String, tx: Sender<UrbPacket>) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         capture_core(device_name, tx).await;
-    });
+    })
 }

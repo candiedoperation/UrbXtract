@@ -32,30 +32,40 @@ pub struct CommandStatusWrapper {
 }
 
 #[derive(Debug)]
-pub struct ReconstructedTransmission {}
+pub struct ReconstructedTransmission {
+    pub combined_payload: String,
+    pub sources: Vec<UrbPacket>,
+}
 
-/* Define Constants */
+pub trait ReconstructionModule {
+    fn new(module_tx: Sender<ReconstructedTransmission>) -> Self;
+    async fn consume_packet(&mut self, urb_packet: UrbPacket);
+}
+
+/* Define Constants  */
 const COMMAND_BLK_WRAP_SIGNATURE: u32 = 0x43425355;
 
 async fn consume_core(consume_tx: Sender<ReconstructedTransmission>, mut sniffer_rx: Receiver<UrbPacket>) {
+    /* Enumerate and Define Plugin Modules */
+    let mut serial_reconstructor = protocol_serial::Reconstructor::new(consume_tx.clone());
+    let mut scsi_reconstructor = protocol_scsi::Reconstructor::new(consume_tx.clone());
+    
     /* Consume Packets as Sniffer captures them */
-    while let Some(urb_packet) = sniffer_rx.recv().await {
-        let urb_header = urb_packet.header;
-        
+    while let Some(urb_packet) = sniffer_rx.recv().await {        
         if urb_packet.data.is_some() {
             /* Get URB Data */
-            let urb_data = urb_packet.data.unwrap();
+            let urb_data = urb_packet.data.as_ref().unwrap();
             
             /* Check for CommandBlockWrapper */
             let cbw_packet = unsafe { ptr::read_unaligned(urb_data.as_ptr() as *const CommandBlockWrapper) };
             if cbw_packet.signature == COMMAND_BLK_WRAP_SIGNATURE {
-                //println!("Got CBW Packet:\n{:?}\n", cbw_packet);
+                /* Usually a SCSI Command? */
+                scsi_reconstructor.consume_packet(urb_packet).await;
             } else {
-                //println!("Transmission: {}", String::from_utf8_lossy(&urb_data));                
+                /* Use the Serial Module */
+                serial_reconstructor.consume_packet(urb_packet).await;
             }
         }
-
-        //println!("URB Packet:\n{:?}, Data: {:?}\n", urb_packet.header, urb_packet.data);
     }
 }
 

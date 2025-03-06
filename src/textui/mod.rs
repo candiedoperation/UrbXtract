@@ -1,6 +1,6 @@
 mod components;
 
-use std::time::Duration;
+use std::{process, time::Duration};
 use components::{panels::TitleBar, tables::VirtualizedTable};
 use crossterm::{event::{Event, EventStream, KeyCode}, terminal::{disable_raw_mode, enable_raw_mode}};
 use futures::{FutureExt, StreamExt};
@@ -39,11 +39,11 @@ impl<'a> UserInterface<'a> {
         frame.render_stateful_widget(table, chunks[1], &mut (self.table_state));
     }
     
-    pub fn new(mut consume_rx: Receiver<ReconstructedTransmission>) -> Self {
+    pub fn new(consume_rx: Receiver<ReconstructedTransmission>) -> Self {
         UserInterface { 
             app_title: String::from("UrbXtract 0.0.1"),
             consume_rx,
-            rows: vec![Row::new(vec!["Cell1", "Cell2", "Cell3"])],
+            rows: vec![],
             table_state: TableState::default()
         }
     }
@@ -81,11 +81,14 @@ impl<'a> UserInterface<'a> {
                     // if (urb_packet_header.bus_id == 3 && urb_packet_header.device == 4 && urb_packet_header.data_length > 0) {
                     //     print!("{}", String::from_utf8_lossy(urb_packet_data));
                     // }
+
+                    self.rows.push(Row::new(vec![transmission.combined_payload]));
                 }
             }
         }
 
         /* Clean Exit? Save Capture? */
-        disable_raw_mode().unwrap();
+        //disable_raw_mode().unwrap();
+        // process::exit(0);
     }
 }

@@ -1,6 +1,5 @@
 use ratatui::{
     prelude::{Buffer, Rect},
-    style::{Color, Style},
     text::Line,
     widgets::Widget,
 };
