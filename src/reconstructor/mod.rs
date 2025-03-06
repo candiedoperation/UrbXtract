@@ -1,7 +1,8 @@
+mod protocol_serial;
+mod protocol_scsi;
+
 use std::ptr;
-
 use tokio::sync::mpsc::{Receiver, Sender};
-
 use crate::sniffer::UrbPacket;
 
 #[repr(C, packed)]
@@ -30,6 +31,7 @@ pub struct CommandStatusWrapper {
     status: bool,
 }
 
+#[derive(Debug)]
 pub struct ReconstructedTransmission {}
 
 /* Define Constants */
@@ -39,6 +41,7 @@ async fn consume_core(consume_tx: Sender<ReconstructedTransmission>, mut sniffer
     /* Consume Packets as Sniffer captures them */
     while let Some(urb_packet) = sniffer_rx.recv().await {
         let urb_header = urb_packet.header;
+        
         if urb_packet.data.is_some() {
             /* Get URB Data */
             let urb_data = urb_packet.data.unwrap();
@@ -46,7 +49,9 @@ async fn consume_core(consume_tx: Sender<ReconstructedTransmission>, mut sniffer
             /* Check for CommandBlockWrapper */
             let cbw_packet = unsafe { ptr::read_unaligned(urb_data.as_ptr() as *const CommandBlockWrapper) };
             if cbw_packet.signature == COMMAND_BLK_WRAP_SIGNATURE {
-                println!("Got CBW Packet:\n{:?}\n", cbw_packet);
+                //println!("Got CBW Packet:\n{:?}\n", cbw_packet);
+            } else {
+                //println!("Transmission: {}", String::from_utf8_lossy(&urb_data));                
             }
         }
 
