@@ -1,7 +1,7 @@
 mod components;
 
 use std::time::Duration;
-use components::tables::VirtualizedTable;
+use components::{panels::TitleBar, tables::VirtualizedTable};
 use crossterm::{event::{Event, EventStream, KeyCode}, terminal::{disable_raw_mode, enable_raw_mode}};
 use futures::{FutureExt, StreamExt};
 use ratatui::{layout::{Constraint, Direction, Layout}, prelude::Backend, text::Line, widgets::{Row, TableState}, Frame, Terminal};
@@ -24,12 +24,18 @@ impl<'a> UserInterface<'a> {
             .constraints([Constraint::Percentage(2), Constraint::Percentage(98)].as_ref())
             .split(rndr_area);
         
+        /* Create Table */
         let table = VirtualizedTable {
             rows: self.rows.clone(),
             widths: vec![Constraint::Percentage(100)],
         };
 
-        frame.render_widget(Line::from(self.app_title.clone()), chunks[0]);
+        /* Create Title Bar */
+        let title_bar = TitleBar {
+            title: self.app_title.clone(),
+        };
+
+        frame.render_widget(title_bar, chunks[0]);
         frame.render_stateful_widget(table, chunks[1], &mut (self.table_state));
     }
     
