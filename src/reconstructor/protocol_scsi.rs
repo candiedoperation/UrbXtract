@@ -13,6 +13,15 @@ impl ReconstructionModule for Reconstructor {
     }
 
     async fn consume_packet(&mut self, urb_packet: crate::sniffer::UrbPacket) {
-        todo!("SCSI Parsing Not Implemented")
+        let transmission = ReconstructedTransmission {
+            combined_payload: String::from("Indentified SCSI Packet. Parsing Not Implemented."),
+            sources: vec![],
+            bus_id: urb_packet.header.bus_id,
+            dev_id: urb_packet.header.device,
+            pkt_direction: (urb_packet.header.endpoint & 0x0F != 0),
+        };
+
+        /* Transmit Packet */
+        self.module_tx.send(transmission).await.unwrap();
     }
 }

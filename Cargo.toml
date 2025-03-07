@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+clap = { version = "4.5.31", features = ["derive"] }
 crossterm = { version="0.28.1", features=["event-stream"] }
 futures = "0.3.31"
 pcap = "2.2.0"

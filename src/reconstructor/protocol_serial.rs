@@ -8,6 +8,9 @@ use super::{ReconstructedTransmission, ReconstructionModule};
 struct SerialDatastore {
     construct_sources: Vec<UrbPacket>,
     combined_payload: String,
+    pkt_direction: bool,
+    dev_id: u8,
+    bus_id: u16,
 }
 
 pub struct Reconstructor {
@@ -23,6 +26,9 @@ impl Reconstructor {
             Some(dispatch_data) => {
                 let send_request = self.module_tx.send(ReconstructedTransmission {
                     combined_payload: dispatch_data.combined_payload.clone(),
+                    bus_id: dispatch_data.bus_id,
+                    dev_id: dispatch_data.dev_id,
+                    pkt_direction: dispatch_data.pkt_direction, 
                     sources: vec![], /* For now, we'd prolly need Box<> for efficiency */
                 });
 
@@ -33,11 +39,18 @@ impl Reconstructor {
                     SerialDatastore {
                         construct_sources: vec![],
                         combined_payload: String::from(""),
+                        pkt_direction: false,
+                        dev_id: 0,
+                        bus_id: 0,
                     }
                 );
             }
         }
     }
+}
+
+fn get_endpoint_direction(endpoint: &u8) -> bool {
+    return endpoint & 0x0F != 0;
 }
 
 impl ReconstructionModule for Reconstructor {
@@ -61,6 +74,9 @@ impl ReconstructionModule for Reconstructor {
                 SerialDatastore {
                     construct_sources: vec![],
                     combined_payload: String::from(""),
+                    pkt_direction: get_endpoint_direction(&urb_header.endpoint),
+                    dev_id: urb_header.device,
+                    bus_id: urb_header.bus_id,
                 },
             );
         }
@@ -76,6 +92,9 @@ impl ReconstructionModule for Reconstructor {
             self.datastore.insert(
                 String::from(device_id),
                 SerialDatastore {
+                    pkt_direction: get_endpoint_direction(&urb_header.endpoint),
+                    dev_id: urb_header.device,
+                    bus_id: urb_header.bus_id,
                     construct_sources: vec![urb_packet],
                     combined_payload: String::from("Non-UTF8 Binary Data"),
                 },
@@ -96,22 +115,6 @@ impl ReconstructionModule for Reconstructor {
             if parsed_strdata.ends_with("\n") {
                 self.dispatch_packet(String::from(device_id)).await;
             }
-
-            // if parsed_strdata.ends_with("\n") {
-            //     /* Dispatch Previous Packet */
-            //     self.dispatch_packet(String::from(device_id)).await;
-
-            //     /* Construct new data store */
-            //     self.datastore.insert(
-            //         String::from(device_id),
-            //         SerialDatastore {
-            //             construct_sources: vec![urb_packet],
-            //             combined_payload: parsed_strdata,
-            //         },
-            //     );
-            // } else {
-                
-            // }
         }
     }
 }
