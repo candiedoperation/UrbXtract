@@ -34,7 +34,7 @@ impl WindowsSystemPipe {
         }
     }
 
-    pub(crate) fn await_clientconnect(&self) {
+    pub(crate) fn connect(&self) {
         unsafe {
             ConnectNamedPipe(
                 self.handle, 

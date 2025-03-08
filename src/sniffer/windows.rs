@@ -16,12 +16,12 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. 
 */
 
-use std::{io::Read, process::Command, ptr};
-use crate::ostools;
+use std::{process::Command, ptr};
 
 use super::{PacketCaptureImpl, UrbXractHeader, UrbXractPacket};
 use pcap_parser::{traits::PcapReaderIterator, LegacyPcapReader, PcapError};
-use tokio::{sync::mpsc::Sender, task::JoinHandle};
+use tokio::net::windows::named_pipe::ServerOptions;
+use tokio_util::io::SyncIoBridge;
 
 /* Define Constants, etc. */
 type UsbdStatus = u32;
@@ -63,10 +63,9 @@ struct USBPcapBufferControlHeader {
     stage: u8
 }
 
-fn get_buffer_pkt_header(data: &[u8]) -> USBPcapBufferPktHeader {
+fn get_struct_frombytes<T>(data: &[u8]) -> T {
     unsafe {
-        let mut pkt_header = ptr::read_unaligned(data.as_ptr() as *const USBPcapBufferPktHeader);
-        /* Return Header */
+        let pkt_header: T = ptr::read_unaligned(data.as_ptr() as *const T);
         pkt_header
     }
 }
@@ -75,7 +74,11 @@ impl PacketCaptureImpl for PacketCapture {
     async fn capture_core(device_name: String, tx: tokio::sync::mpsc::Sender<super::UrbXractPacket>) {        
         /* Setup a Named Pipe */
         let capture_pipename = format!(r"\\.\pipe\urbxtract_{}", device_name);
-        let capture_syspipe = ostools::windows::create_named_pipe(&capture_pipename, 65536).unwrap();
+        let capture_syspipe = 
+            ServerOptions::new()
+            .in_buffer_size(65536)
+            .create(&capture_pipename)
+            .unwrap();
         
         /* Spawn the USBPcap Process, See: https://www.wireshark.org/docs/wsdg_html_chunked/ChCaptureExtcap.html */
         let mut _usbpcap_proc = Command::new(USBPCAP_PATH)
@@ -84,56 +87,78 @@ impl PacketCaptureImpl for PacketCapture {
             .expect("Failed to start USBPcapCMD Process");
 
         /* Wait for Subprocess to Connect */
-        capture_syspipe.await_clientconnect();
+        capture_syspipe.connect().await.unwrap();
         println!("USBPcapCMD Module Connected to Pipe");
 
-        /* Setup PCAP Stream Parser, See: https://docs.rs/pcap-parser/latest/pcap_parser/pcap/struct.LegacyPcapReader.html#example */
-        let mut pcap_stream = LegacyPcapReader::new(65536, capture_syspipe).unwrap();
-        loop {
-            match pcap_stream.next() {
-                Err(PcapError::Eof) => break,
-                Err(PcapError::Incomplete(_)) => { pcap_stream.refill().unwrap(); },
-                Err(e) => panic!("Error while reading: {:?}", e),
+        tokio::task::spawn_blocking(move || {
+            /* Setup PCAP Stream Parser, See: https://docs.rs/pcap-parser/latest/pcap_parser/pcap/struct.LegacyPcapReader.html#example */
+            let capture_syncreader = SyncIoBridge::new(capture_syspipe);
+            let mut pcap_stream = LegacyPcapReader::new(65536, capture_syncreader).unwrap();
 
-                Ok((offset, block)) => {
-                    match block {
-                        pcap_parser::PcapBlockOwned::LegacyHeader(_pcap_header) => { },
-                        pcap_parser::PcapBlockOwned::NG(_block) => { },
+            loop {
+                match pcap_stream.next() {
+                    Err(PcapError::Eof) => break,
+                    Err(PcapError::Incomplete(_)) => { pcap_stream.refill().unwrap(); },
+                    Err(e) => panic!("Error while reading: {:?}", e),
 
-                        pcap_parser::PcapBlockOwned::Legacy(legacy_pcap_block) => {
-                            let end_index = size_of::<USBPcapBufferPktHeader>();
-                            let urb_header = get_buffer_pkt_header(&legacy_pcap_block.data[0..end_index]);
-                            
-                            let urb_data = 
-                                if urb_header.data_length < 1 { None }
-                                else { 
-                                    Some(legacy_pcap_block.data[
-                                        end_index..(end_index + urb_header.data_length as usize)
-                                    ].to_vec()) 
+                    Ok((offset, block)) => {
+                        match block {
+                            pcap_parser::PcapBlockOwned::LegacyHeader(_pcap_header) => { },
+                            pcap_parser::PcapBlockOwned::NG(_block) => { },
+
+                            pcap_parser::PcapBlockOwned::Legacy(legacy_pcap_block) => {
+                                let mut end_index = size_of::<USBPcapBufferPktHeader>();
+                                let urb_header = get_struct_frombytes::<USBPcapBufferPktHeader>(&legacy_pcap_block.data[0..end_index]);
+                                
+                                /* Match Transfer Types */
+                                match urb_header.xfer_type {
+                                    0 => {
+                                        /* ISOCHRONOUS Transfer */
+                                        end_index = size_of::<USBPcapBufferIsoHeader>(); 
+                                    },
+
+                                    2 => {
+                                        /* CONTROL Transfer */
+                                        end_index = size_of::<USBPcapBufferControlHeader>();
+                                    },
+
+                                    _ => { /* Bulk, Interrupt, Invalid Transfer */ },
+                                }
+
+                                /* Get URB Payload Data */
+                                let urb_data = 
+                                    if urb_header.data_length < 1 { None }
+                                    else { 
+                                        Some(legacy_pcap_block.data[
+                                            end_index..(end_index + urb_header.data_length as usize)
+                                        ].to_vec()) 
+                                    };
+
+                                /* Construct UrbXtractHeader */
+                                let urbx_header = UrbXractHeader {
+                                    bus_id: urb_header.bus_id,
+                                    device_id: urb_header.device_id,
                                 };
-                            
-                            /* Construct UrbXtractHeader */
-                            let urbx_header = UrbXractHeader {
-                                bus_id: urb_header.bus_id,
-                                device_id: urb_header.device_id,
-                            };
 
-                            /* Construct UrbXtractPacket */
-                            let urbx_packet = UrbXractPacket {
-                                header: urbx_header,
-                                data: urb_data,
-                            };
+                                /* Construct UrbXtractPacket */
+                                let urbx_packet = UrbXractPacket {
+                                    header: urbx_header,
+                                    data: urb_data,
+                                };
 
-                            println!("URB Info:\n{:?}\n", urbx_packet);
-                            //tx.send(urb_payload).await.unwrap();
-                        },
-                    }                  
-                    
-                    /* Consume the Block */
-                    pcap_stream.consume(offset);
-                },
+                                println!("URB Info:\n{:?}\n", urbx_packet);
+                                tx.blocking_send(urbx_packet).unwrap();
+                            },
+                        }                  
+                        
+                        /* Consume the Block */
+                        pcap_stream.consume(offset);
+                    },
+                }
             }
-        }
+        })
+        .await
+        .unwrap();
     }
     
     fn get_devices_list() -> Vec<String> {
