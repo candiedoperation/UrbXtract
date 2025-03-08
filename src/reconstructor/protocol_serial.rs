@@ -27,7 +27,7 @@ struct SerialDatastore {
     construct_sources: Vec<UrbXractPacket>,
     combined_payload: String,
     pkt_direction: bool,
-    dev_id: u8,
+    dev_id: u16,
     bus_id: u16,
 }
 

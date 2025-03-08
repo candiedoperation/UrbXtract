@@ -22,16 +22,12 @@ mod sniffer;
 mod licenses;
 mod reconstructor;
 
-use std::{fs::File, io::{ErrorKind, Read}, time::Duration};
 
 use clap::Parser;
-use pcap::Device;
 use reconstructor::ReconstructedTransmission;
-use sniffer::UrbXractPacket;
-use tokio::{sync::mpsc, time::sleep};
-
-#[cfg(target_os="windows")]
-use ostools::windows;
+use sniffer::{PacketCaptureImpl, UrbXractPacket};
+use tokio::sync::mpsc;
+use sniffer::PacketCapture;
 
 #[derive(Parser, Debug)]
 struct CLIArgs {
@@ -44,44 +40,26 @@ async fn main() {
     /* Print License and Available Capture Interface */
     println!("{}", licenses::get_license_string_short());
 
-    let capture_pipename = r"\\.\pipe\helloworldpipe";
-    let mut win_pipe = windows::create_named_pipe(capture_pipename, 65536).unwrap();
-    win_pipe.await_clientconnect();
-    println!("extcap Module Connected to Pipe");
-
-    loop {
-        let mut buf = [0; 65536];
-        match win_pipe.read(&mut buf) {
-            Ok(0) => break,
-            Ok(n) => println!("{} bytes read", n),
-            Err(e) => panic!("Error: {:?}", e),
-        }
-        
-        // let bytes = win_pipe.read(&mut buf).unwrap();
-        //println!("Read: {} bytes", bytes);
-    }
-
     /* Enumerate the Capture Devices */
-    // let device_list = Device::list().unwrap();
-    // print!("{:?}", device_list);
+    println!("Available Devices:\n{:?}\n", PacketCapture::get_devices_list());
 
     /* Parse CLI Args */
-    // let cli_args = CLIArgs::parse();
+    let cli_args = CLIArgs::parse();
 
     // /* Create Multi-producer Single-Consumer Channel and start capture */
-    // let (sniffer_tx, sniffer_rx) = mpsc::channel::<UrbPacket>(2);
-    // let capture_handle = sniffer::capture(cli_args.capture_interface, sniffer_tx);
+    let (sniffer_tx, sniffer_rx) = mpsc::channel::<UrbXractPacket>(2);
+    let capture_handle = sniffer::capture(cli_args.capture_interface, sniffer_tx);
 
-    // /* Create Channel for Packet Reconstruction and Pass Sniffer Receiver */
-    // let (reconstruct_tx, reconstruct_rx) = mpsc::channel::<ReconstructedTransmission>(2);
-    // reconstructor::consume(reconstruct_tx, sniffer_rx);
-
+    /* Create Channel for Packet Reconstruction and Pass Sniffer Receiver */
+    let (reconstruct_tx, reconstruct_rx) = mpsc::channel::<ReconstructedTransmission>(2);
+    reconstructor::consume(reconstruct_tx, sniffer_rx);
+capture_handle.await.unwrap(); // take off later!!
     // /* Create User Interface and start the Render loop */
     // let terminal_interface = ratatui::init();
     // let mut app = textui::UserInterface::new(reconstruct_rx);
     // app.run(terminal_interface).await;
 
     // /* Reset the Terminal */
-    // capture_handle.abort();
+    //capture_handle.abort();
     // ratatui::restore();
 }

@@ -53,7 +53,7 @@ pub struct CommandStatusWrapper {
 pub struct ReconstructedTransmission {
     pub combined_payload: String,
     pub bus_id: u16,
-    pub dev_id: u8,
+    pub dev_id: u16,
     pub pkt_direction: bool, /* False is OUT */
     pub sources: Vec<UrbXractPacket>,
 }

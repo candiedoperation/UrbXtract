@@ -17,8 +17,8 @@
 */
 
 use windows::core::PCSTR;
-use windows::Win32::Foundation::{GetLastError, HANDLE};
-use windows::Win32::Storage::FileSystem::{ReadFile, PIPE_ACCESS_DUPLEX, PIPE_ACCESS_INBOUND};
+use windows::Win32::Foundation::HANDLE;
+use windows::Win32::Storage::FileSystem::{ReadFile, PIPE_ACCESS_INBOUND};
 use windows::Win32::System::Pipes::{ConnectNamedPipe, CreateNamedPipeA, PIPE_READMODE_BYTE, PIPE_TYPE_BYTE, PIPE_WAIT};
 use std::ffi::CString;
 use std::io;
@@ -35,8 +35,12 @@ impl WindowsSystemPipe {
     }
 
     pub(crate) fn await_clientconnect(&self) {
-        let connected = unsafe { ConnectNamedPipe(self.handle, None) };
-        connected.unwrap();
+        unsafe {
+            ConnectNamedPipe(
+                self.handle, 
+                None
+            ).unwrap() 
+        }
     }
 }
 

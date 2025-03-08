@@ -20,10 +20,10 @@ use tokio::sync::mpsc::Sender;
 
 cfg_if::cfg_if! {
     if #[cfg(target_os = "linux")] {
-        mod linux;
+        pub mod linux;
         pub use linux::PacketCapture;
     } else if #[cfg(target_os = "windows")] {
-        mod windows;
+        pub mod windows;
         pub use windows::PacketCapture;
     }
 }
@@ -31,7 +31,7 @@ cfg_if::cfg_if! {
 #[derive(Debug)]
 pub struct UrbXractHeader {
     pub bus_id: u16,
-    pub device_id: u8,
+    pub device_id: u16,
 }
 
 #[derive(Debug)]
@@ -42,6 +42,7 @@ pub struct UrbXractPacket {
 
 pub(crate) trait PacketCaptureImpl {
     async fn capture_core(device_name: String, tx: Sender<UrbXractPacket>);
+    fn get_devices_list() -> Vec<String>;
 }
 
 pub fn capture(device_name: String, tx: Sender<UrbXractPacket>) -> tokio::task::JoinHandle<()> {
