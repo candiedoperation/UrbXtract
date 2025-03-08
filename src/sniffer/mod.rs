@@ -18,17 +18,15 @@
 
 use tokio::sync::mpsc::Sender;
 
-#[cfg(target_os="linux")]
-mod linux;
-
-#[cfg(target_os="linux")]
-use linux::*;
-
-#[cfg(target_os="windows")]
-mod windows;
-
-#[cfg(target_os="windows")]
-use windows::*;
+cfg_if::cfg_if! {
+    if #[cfg(target_os = "linux")] {
+        mod linux;
+        pub use linux::PacketCapture;
+    } else if #[cfg(target_os = "windows")] {
+        mod windows;
+        pub use windows::PacketCapture;
+    }
+}
 
 #[derive(Debug)]
 pub struct UrbXractHeader {
