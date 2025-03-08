@@ -101,8 +101,30 @@ impl PacketCaptureImpl for PacketCapture {
                         pcap_parser::PcapBlockOwned::NG(_block) => { },
 
                         pcap_parser::PcapBlockOwned::Legacy(legacy_pcap_block) => {
-                            /* IMPLMENT THIS */
-                            println!("New Data Block: {:?}", legacy_pcap_block);
+                            let end_index = size_of::<USBPcapBufferPktHeader>();
+                            let urb_header = get_buffer_pkt_header(&legacy_pcap_block.data[0..end_index]);
+                            
+                            let urb_data = 
+                                if urb_header.data_length < 1 { None }
+                                else { 
+                                    Some(legacy_pcap_block.data[
+                                        end_index..(end_index + urb_header.data_length as usize)
+                                    ].to_vec()) 
+                                };
+                            
+                            /* Construct UrbXtractHeader */
+                            let urbx_header = UrbXractHeader {
+                                bus_id: urb_header.bus_id,
+                                device_id: urb_header.device_id,
+                            };
+
+                            /* Construct UrbXtractPacket */
+                            let urbx_packet = UrbXractPacket {
+                                header: urbx_header,
+                                data: urb_data,
+                            };
+
+                            println!("URB Info:\n{:?}\n", urbx_packet);
                             //tx.send(urb_payload).await.unwrap();
                         },
                     }                  
