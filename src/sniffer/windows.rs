@@ -146,7 +146,6 @@ impl PacketCaptureImpl for PacketCapture {
                                     data: urb_data,
                                 };
 
-                                println!("URB Info:\n{:?}\n", urbx_packet);
                                 tx.blocking_send(urbx_packet).unwrap();
                             },
                         }                  
