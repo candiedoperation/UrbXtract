@@ -86,10 +86,8 @@ impl PacketCaptureImpl for PacketCapture {
             .spawn()
             .expect("Failed to start USBPcapCMD Process");
 
-        /* Wait for Subprocess to Connect */
+        /* Wait for Subprocess to Connect, Spawn Tokio Task */
         capture_syspipe.connect().await.unwrap();
-        println!("USBPcapCMD Module Connected to Pipe");
-
         tokio::task::spawn_blocking(move || {
             /* Setup PCAP Stream Parser, See: https://docs.rs/pcap-parser/latest/pcap_parser/pcap/struct.LegacyPcapReader.html#example */
             let capture_syncreader = SyncIoBridge::new(capture_syspipe);

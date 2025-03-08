@@ -158,7 +158,7 @@ impl<'a> UserInterface<'a> {
     }
 
     pub async fn run(&mut self, mut terminal: Terminal<impl Backend>) {
-        let render_interval = Duration::from_millis(100);
+        let render_interval = Duration::from_millis(200);
         let mut last_render = Instant::now();
         let mut event_handler = EventStream::new();
         

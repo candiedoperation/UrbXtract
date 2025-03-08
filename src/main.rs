@@ -24,6 +24,7 @@ mod reconstructor;
 
 
 use clap::Parser;
+use ratatui::Terminal;
 use reconstructor::ReconstructedTransmission;
 use sniffer::{PacketCaptureImpl, UrbXractPacket};
 use tokio::sync::mpsc;
@@ -46,7 +47,7 @@ async fn main() {
     /* Parse CLI Args */
     let cli_args = CLIArgs::parse();
 
-    // /* Create Multi-producer Single-Consumer Channel and start capture */
+    /* Create Multi-producer Single-Consumer Channel and start capture */
     let (sniffer_tx, sniffer_rx) = mpsc::channel::<UrbXractPacket>(2);
     let capture_handle = sniffer::capture(cli_args.capture_interface, sniffer_tx);
 
