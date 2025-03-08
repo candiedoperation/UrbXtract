@@ -18,13 +18,13 @@
 
 use std::collections::HashMap;
 
-use crate::sniffer::UrbPacket;
+use crate::sniffer::UrbXractPacket;
 use tokio::sync::mpsc::Sender;
 
 use super::{ReconstructedTransmission, ReconstructionModule};
 
 struct SerialDatastore {
-    construct_sources: Vec<UrbPacket>,
+    construct_sources: Vec<UrbXractPacket>,
     combined_payload: String,
     pkt_direction: bool,
     dev_id: u8,
@@ -79,21 +79,21 @@ impl ReconstructionModule for Reconstructor {
         }
     }
 
-    async fn consume_packet(&mut self, urb_packet: crate::sniffer::UrbPacket) {
+    async fn consume_packet(&mut self, urb_packet: crate::sniffer::UrbXractPacket) {
         let urb_header = &urb_packet.header;
         let urb_data = urb_packet.data.as_ref().unwrap();
         let strbuild_result = String::from_utf8(urb_data.to_vec());
 
         /* Construct Datastore */
-        let device_id = &format!("{}:{}", urb_header.bus_id, urb_header.device);
+        let device_id = &format!("{}:{}", urb_header.bus_id, urb_header.device_id);
         if !self.datastore.contains_key(device_id) {
             self.datastore.insert(
                 String::from(device_id),
                 SerialDatastore {
                     construct_sources: vec![],
                     combined_payload: String::from(""),
-                    pkt_direction: get_endpoint_direction(&urb_header.endpoint),
-                    dev_id: urb_header.device,
+                    pkt_direction: false,
+                    dev_id: urb_header.device_id,
                     bus_id: urb_header.bus_id,
                 },
             );
@@ -110,8 +110,8 @@ impl ReconstructionModule for Reconstructor {
             self.datastore.insert(
                 String::from(device_id),
                 SerialDatastore {
-                    pkt_direction: get_endpoint_direction(&urb_header.endpoint),
-                    dev_id: urb_header.device,
+                    pkt_direction: false,
+                    dev_id: urb_header.device_id,
                     bus_id: urb_header.bus_id,
                     construct_sources: vec![urb_packet],
                     combined_payload: String::from("Non-UTF8 Binary Data"),

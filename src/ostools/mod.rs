@@ -16,38 +16,5 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. 
 */
 
-use tokio::sync::mpsc::Sender;
-
-#[cfg(target_os="linux")]
-mod linux;
-
-#[cfg(target_os="linux")]
-use linux::*;
-
 #[cfg(target_os="windows")]
-mod windows;
-
-#[cfg(target_os="windows")]
-use windows::*;
-
-#[derive(Debug)]
-pub struct UrbXractHeader {
-    pub bus_id: u16,
-    pub device_id: u8,
-}
-
-#[derive(Debug)]
-pub struct UrbXractPacket {
-    pub header: UrbXractHeader,
-    pub data: Option<Vec<u8>>
-}
-
-pub(crate) trait PacketCaptureImpl {
-    async fn capture_core(device_name: String, tx: Sender<UrbXractPacket>);
-}
-
-pub fn capture(device_name: String, tx: Sender<UrbXractPacket>) -> tokio::task::JoinHandle<()> {
-    tokio::spawn(async move {
-        PacketCapture::capture_core(device_name, tx).await;
-    })
-}
+pub mod windows;

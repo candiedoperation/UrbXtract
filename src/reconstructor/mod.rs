@@ -21,7 +21,7 @@ mod protocol_scsi;
 
 use std::ptr;
 use tokio::sync::mpsc::{Receiver, Sender};
-use crate::sniffer::UrbPacket;
+use crate::sniffer::UrbXractPacket;
 
 #[repr(C, packed)]
 #[derive(Debug)]
@@ -55,18 +55,18 @@ pub struct ReconstructedTransmission {
     pub bus_id: u16,
     pub dev_id: u8,
     pub pkt_direction: bool, /* False is OUT */
-    pub sources: Vec<UrbPacket>,
+    pub sources: Vec<UrbXractPacket>,
 }
 
 pub trait ReconstructionModule {
     fn new(module_tx: Sender<ReconstructedTransmission>) -> Self;
-    async fn consume_packet(&mut self, urb_packet: UrbPacket);
+    async fn consume_packet(&mut self, urb_packet: UrbXractPacket);
 }
 
 /* Define Constants  */
 const COMMAND_BLK_WRAP_SIGNATURE: u32 = 0x43425355;
 
-async fn consume_core(consume_tx: Sender<ReconstructedTransmission>, mut sniffer_rx: Receiver<UrbPacket>) {
+async fn consume_core(consume_tx: Sender<ReconstructedTransmission>, mut sniffer_rx: Receiver<UrbXractPacket>) {
     /* Enumerate and Define Plugin Modules */
     let mut serial_reconstructor = protocol_serial::Reconstructor::new(consume_tx.clone());
     let mut scsi_reconstructor = protocol_scsi::Reconstructor::new(consume_tx.clone());
@@ -90,7 +90,7 @@ async fn consume_core(consume_tx: Sender<ReconstructedTransmission>, mut sniffer
     }
 }
 
-pub fn consume(consume_tx: Sender<ReconstructedTransmission>, sniffer_rx: Receiver<UrbPacket>) {
+pub fn consume(consume_tx: Sender<ReconstructedTransmission>, sniffer_rx: Receiver<UrbXractPacket>) {
     tokio::spawn(async move {
         /* Call the core-consumer */
         consume_core(consume_tx, sniffer_rx).await;
