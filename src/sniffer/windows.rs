@@ -20,7 +20,7 @@ use std::{io::Read, process::Command, ptr};
 use crate::ostools;
 
 use super::{PacketCaptureImpl, UrbXractHeader, UrbXractPacket};
-use pcap::{Capture, Device};
+use pcap_parser::{traits::PcapReaderIterator, LegacyPcapReader, PcapError};
 use tokio::{sync::mpsc::Sender, task::JoinHandle};
 
 /* Define Constants, etc. */
@@ -28,7 +28,9 @@ type UsbdStatus = u32;
 pub struct PacketCapture;
 const USBPCAP_PATH: &str = r"C:\Program Files\Wireshark\extcap\USBPcapCMD.exe";
 
+#[allow(dead_code)]
 #[repr(C, packed)]
+#[derive(Debug)]
 struct USBPcapBufferPktHeader {
     header_length: u16,
     irp_id: u64,            /* I/O Request Pkt. ID */
@@ -42,6 +44,7 @@ struct USBPcapBufferPktHeader {
     data_length: u32
 }
 
+#[allow(dead_code)]
 #[repr(C, packed)]
 struct USBPcapBufferIsoHeader {
     pkt_header: USBPcapBufferPktHeader,
@@ -53,42 +56,62 @@ struct USBPcapBufferIsoHeader {
     status: UsbdStatus
 }
 
+#[allow(dead_code)]
+#[repr(C, packed)]
+struct USBPcapBufferControlHeader {
+    pkt_header: USBPcapBufferPktHeader,
+    stage: u8
+}
+
+fn get_buffer_pkt_header(data: &[u8]) -> USBPcapBufferPktHeader {
+    unsafe {
+        let mut pkt_header = ptr::read_unaligned(data.as_ptr() as *const USBPcapBufferPktHeader);
+        /* Return Header */
+        pkt_header
+    }
+}
+
 impl PacketCaptureImpl for PacketCapture {
     async fn capture_core(device_name: String, tx: tokio::sync::mpsc::Sender<super::UrbXractPacket>) {        
         /* Setup a Named Pipe */
         let capture_pipename = format!(r"\\.\pipe\urbxtract_{}", device_name);
-        println!("{}", capture_pipename);
-        
-        /* Create a stream for USBPcap Communication */
-        let mut capture_stream = ostools::windows::create_named_pipe(&capture_pipename, 65536).unwrap();
+        let capture_syspipe = ostools::windows::create_named_pipe(&capture_pipename, 65536).unwrap();
         
         /* Spawn the USBPcap Process, See: https://www.wireshark.org/docs/wsdg_html_chunked/ChCaptureExtcap.html */
-        let mut usbpcap_proc = Command::new(USBPCAP_PATH)
+        let mut _usbpcap_proc = Command::new(USBPCAP_PATH)
             .args(vec!["--extcap-interface", &format!(r"\\.\{}", device_name), "--capture", "-A", "--fifo", &capture_pipename])
             .spawn()
             .expect("Failed to start USBPcapCMD Process");
 
         /* Wait for Subprocess to Connect */
-        capture_stream.await_clientconnect();
+        capture_syspipe.await_clientconnect();
         println!("USBPcapCMD Module Connected to Pipe");
 
+        /* Setup PCAP Stream Parser, See: https://docs.rs/pcap-parser/latest/pcap_parser/pcap/struct.LegacyPcapReader.html#example */
+        let mut pcap_stream = LegacyPcapReader::new(65536, capture_syspipe).unwrap();
         loop {
-            let mut buffer = [0; 2048];
-            match capture_stream.read(&mut buffer) {
-                Ok(0) => break,
-                Ok(n) => println!("{} bytes read", n),
-                Err(e) => panic!("Error: {:?}", e),
+            match pcap_stream.next() {
+                Err(PcapError::Eof) => break,
+                Err(PcapError::Incomplete(_)) => { pcap_stream.refill().unwrap(); },
+                Err(e) => panic!("Error while reading: {:?}", e),
+
+                Ok((offset, block)) => {
+                    match block {
+                        pcap_parser::PcapBlockOwned::LegacyHeader(_pcap_header) => { },
+                        pcap_parser::PcapBlockOwned::NG(_block) => { },
+
+                        pcap_parser::PcapBlockOwned::Legacy(legacy_pcap_block) => {
+                            /* IMPLMENT THIS */
+                            println!("New Data Block: {:?}", legacy_pcap_block);
+                            //tx.send(urb_payload).await.unwrap();
+                        },
+                    }                  
+                    
+                    /* Consume the Block */
+                    pcap_stream.consume(offset);
+                },
             }
         }
-
-        // /* Capture the Packets and URB Data from PCAP */
-        // while let Ok(pcap_packet) = capture_stream.next_packet() {
-        //     /* Transmit Packet using Tokio MPSC Channel */
-        //     //tx.send(urb_payload).await.unwrap();
-        // }
-
-        /* Terminate the child, just in case! */
-        usbpcap_proc.kill().unwrap();
     }
     
     fn get_devices_list() -> Vec<String> {

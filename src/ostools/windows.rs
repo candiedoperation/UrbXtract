@@ -18,7 +18,7 @@
 
 use windows::core::PCSTR;
 use windows::Win32::Foundation::HANDLE;
-use windows::Win32::Storage::FileSystem::{ReadFile, PIPE_ACCESS_INBOUND};
+use windows::Win32::Storage::FileSystem::{ReadFile, PIPE_ACCESS_DUPLEX};
 use windows::Win32::System::Pipes::{ConnectNamedPipe, CreateNamedPipeA, PIPE_READMODE_BYTE, PIPE_TYPE_BYTE, PIPE_WAIT};
 use std::ffi::CString;
 use std::io;
@@ -68,7 +68,7 @@ pub(crate) fn create_named_pipe(pipe_name: &str, bufsize: u32) -> Result<Windows
         let pipename_cstr = CString::new(pipe_name).unwrap();
         let handle_res = CreateNamedPipeA(
             PCSTR(pipename_cstr.as_ptr() as *const u8),
-            PIPE_ACCESS_INBOUND,
+            PIPE_ACCESS_DUPLEX,
             PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,
             1,   // Number of instances
             0, // Out buffer size
