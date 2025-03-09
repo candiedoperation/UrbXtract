@@ -13,13 +13,15 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <https://www.gnu.org/licenses/>. 
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
+
+use std::collections::HashMap;
 
 use ratatui::{
     prelude::{Buffer, Rect},
     text::Line,
-    widgets::Widget,
+    widgets::{StatefulWidget, Widget},
 };
 
 pub struct TitleBar {
@@ -30,5 +32,26 @@ impl Widget for TitleBar {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let title_line = Line::from(self.title).centered();
         title_line.render(area, buf);
+    }
+}
+
+pub struct ShortcutsFooter {}
+
+pub struct ShortcutsFooterState {
+    pub shortcuts: Vec<String>,
+}
+
+impl StatefulWidget for ShortcutsFooter {
+    type State = ShortcutsFooterState;
+
+    fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
+        let mut sp_string = String::from("|");
+        state
+            .shortcuts
+            .iter()
+            .for_each(|sh| sp_string += &format!(" {} |", sh));
+
+        let shortcuts_panel = Line::from(sp_string).right_aligned();
+        shortcuts_panel.render(area, buf);
     }
 }

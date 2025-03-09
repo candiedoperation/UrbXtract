@@ -19,7 +19,7 @@
 mod components;
 
 use std::time::Duration;
-use components::{panels::TitleBar, tables::VirtualizedTable};
+use components::{panels::{ShortcutsFooter, ShortcutsFooterState, TitleBar}, tables::VirtualizedTable};
 use crossterm::event::{Event, EventStream, KeyCode, KeyModifiers};
 use futures::{FutureExt, StreamExt};
 use ratatui::{layout::{Constraint, Direction, Layout}, prelude::Backend, widgets::{Row, TableState}, Frame, Terminal};
@@ -34,6 +34,7 @@ pub struct UserInterface<'a> {
     /* Main Interface Config */
     app_title: String,
     active_page: UIPage,
+    shortcutspnl_state: ShortcutsFooterState,
     
     /* Table Options */
     rows: Vec<Row<'a>>,
@@ -79,7 +80,7 @@ impl<'a> UserInterface<'a> {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .margin(1)
-            .constraints([Constraint::Percentage(2), Constraint::Percentage(98)].as_ref())
+            .constraints([Constraint::Percentage(2), Constraint::Percentage(96), Constraint::Percentage(2)].as_ref())
             .split(rndr_area);
 
         /* Create Table */
@@ -109,6 +110,7 @@ impl<'a> UserInterface<'a> {
 
         frame.render_widget(title_bar, chunks[0]);
         frame.render_stateful_widget(table, chunks[1], &mut (self.table_state));
+        frame.render_stateful_widget(ShortcutsFooter {}, chunks[2], &mut (self.shortcutspnl_state));
     }
     
     pub fn new(consume_rx: Receiver<ReconstructedTransmission>) -> Self {
@@ -119,6 +121,14 @@ impl<'a> UserInterface<'a> {
             rows: vec![],
             table_state: TableState::default(),
             table_auto_scroll: true,
+            shortcutspnl_state: ShortcutsFooterState {
+                shortcuts: vec![
+                    String::from("More Info (↵)"),
+                    String::from("To Top (Shift + Up)"),
+                    String::from("To Bottom (Shift + Down)"),
+                    String::from("Quit (q)")
+                ]
+            },
         }
     }
 
