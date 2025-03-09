@@ -55,7 +55,7 @@ pub struct UsbmonHeader {
     pub type_: u8,
     pub transfer_type: u8,
     pub endpoint: u8,
-    pub device: u8,
+    pub device_id: u8,
     pub bus_id: u16,
     pub setup_flag: u8,
     pub data_flag: u8,
@@ -78,7 +78,7 @@ impl From<RawUsbmonHeader> for UsbmonHeader {
             type_: raw_urbheader.type_,
             transfer_type: raw_urbheader.transfer_type,
             endpoint: raw_urbheader.endpoint,
-            device: raw_urbheader.device,
+            device_id: raw_urbheader.device,
             bus_id: u16::from_ne_bytes(raw_urbheader.bus_id),
             setup_flag: raw_urbheader.setup_flag,
             data_flag: raw_urbheader.data_flag,
@@ -124,13 +124,14 @@ impl PacketCaptureImpl for PacketCapture {
             let urb_data_length = urb_packet_header.data_length as usize;
             
             /* Construct an XtractHeader */
-            let xtractheader = UrbXractHeader {
-
+            let urbx_header = UrbXractHeader {
+                bus_id: urb_packet_header.bus_id,
+                device_id: urb_packet_header.device_id as u16,
             };
 
             /* Construct Payload Structure for Async Transmission */
             let urb_payload = UrbXractPacket {
-                header: todo!(),
+                header: urbx_header,
                 data: if urb_data_length > 0 { 
                     /* Get Appropriate Data Region */
                     let urb_packet_data = &pcap_packet.data[URB_PACKET_HDRLEN..(URB_PACKET_HDRLEN + urb_data_length)];
@@ -144,5 +145,9 @@ impl PacketCaptureImpl for PacketCapture {
             /* Transmit Packet using Tokio MPSC Channel */
             tx.send(urb_payload).await.unwrap();
         }
+    }
+    
+    fn get_devices_list() -> Vec<String> {
+        return vec![]
     }
 }

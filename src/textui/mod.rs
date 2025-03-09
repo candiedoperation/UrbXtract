@@ -123,42 +123,33 @@ impl<'a> UserInterface<'a> {
     }
 
     fn handle_terminal_event(&mut self, event: Event) {
-        match event {
-            Event::Key(key_event) => {
+        if let Event::Key(key_event) = event {
+            if key_event.kind == crossterm::event::KeyEventKind::Press {
                 match (key_event.code, key_event.modifiers) {
                     (KeyCode::Up, KeyModifiers::SHIFT) => {
-                        /* Scroll to top */
                         self.table_state.select_first();
                         self.table_auto_scroll = false;
                     },
-
-                    (KeyCode::Up, _)  => {
-                        /* Scroll up by 1 */
+                    (KeyCode::Up, _) => {
                         self.table_state.select_previous();
                         self.table_auto_scroll = false;
                     },
-
                     (KeyCode::Down, KeyModifiers::SHIFT) => {
-                        /* Scroll to End, Enable Autoscroll */
                         self.table_state.select_last();
                         self.table_auto_scroll = true;
-                    }
-
+                    },
                     (KeyCode::Down, _) => {
                         self.table_state.select_next();
                         self.table_auto_scroll = false;
                     },
-
                     _ => {}
                 }
-            },
-
-            _ => {}
+            }
         }
     }
 
     pub async fn run(&mut self, mut terminal: Terminal<impl Backend>) {
-        let render_interval = Duration::from_millis(200);
+        let render_interval = Duration::from_millis(50);
         let mut last_render = Instant::now();
         let mut event_handler = EventStream::new();
         
