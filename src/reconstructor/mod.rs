@@ -21,7 +21,7 @@ mod protocol_scsi;
 
 use std::ptr;
 use tokio::sync::mpsc::{Receiver, Sender};
-use crate::sniffer::UrbXractPacket;
+use crate::sniffer::{UrbXractHeader, UrbXractPacket};
 
 #[repr(C, packed)]
 #[derive(Debug)]
@@ -51,10 +51,8 @@ pub struct CommandStatusWrapper {
 
 #[derive(Debug)]
 pub struct ReconstructedTransmission {
+    pub urbx_header: UrbXractHeader,
     pub combined_payload: String,
-    pub bus_id: u16,
-    pub dev_id: u16,
-    pub pkt_direction: bool, /* False is OUT */
     pub sources: Vec<UrbXractPacket>,
 }
 

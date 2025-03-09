@@ -136,6 +136,7 @@ impl PacketCaptureImpl for PacketCapture {
                                 let urbx_header = UrbXractHeader {
                                     bus_id: urb_header.bus_id,
                                     device_id: urb_header.device_id,
+                                    endpoint_info: urb_header.endpoint
                                 };
 
                                 /* Construct UrbXtractPacket */

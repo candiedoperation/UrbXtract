@@ -127,6 +127,7 @@ impl PacketCaptureImpl for PacketCapture {
             let urbx_header = UrbXractHeader {
                 bus_id: urb_packet_header.bus_id,
                 device_id: urb_packet_header.device_id as u16,
+                endpoint_info: urb_packet_header.endpoint
             };
 
             /* Construct Payload Structure for Async Transmission */

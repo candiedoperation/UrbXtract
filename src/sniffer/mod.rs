@@ -32,6 +32,7 @@ cfg_if::cfg_if! {
 pub struct UrbXractHeader {
     pub bus_id: u16,
     pub device_id: u16,
+    pub endpoint_info: u8
 }
 
 #[derive(Debug)]

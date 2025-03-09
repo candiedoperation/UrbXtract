@@ -45,7 +45,7 @@ pub struct UserInterface<'a> {
 }
 
 /* Define Constants */
-const STATIC_ROW_WIDTH: u16 = 30; // Update if you change column lengths
+const STATIC_ROW_WIDTH: u16 = 35; // Update if you change column lengths
 
 fn sanitize_ansi_escape(text: &str) -> String {
     text.chars()
@@ -86,11 +86,11 @@ impl<'a> UserInterface<'a> {
         let table = VirtualizedTable {
             rows: self.rows.clone(),
             widths: vec![
-                Constraint::Length(7), /* Packet # */
-                Constraint::Length(7), /* Bus ID */
-                Constraint::Length(7), /* Dev ID */
-                Constraint::Length(9), /* Pkt Src */
-                Constraint::Min(70)    /* Payload Preview */
+                Constraint::Length(8), /* Packet # */
+                Constraint::Length(8), /* Bus ID */
+                Constraint::Length(8), /* Dev ID */
+                Constraint::Length(11), /* Pkt Src */
+                Constraint::Min(65)    /* Payload Preview */
             ],
 
             header: Row::new(vec![
@@ -181,18 +181,14 @@ impl<'a> UserInterface<'a> {
 
                 /* Consume Packets as Sniffer captures them */
                 Some(transmission) = self.consume_rx.recv() => {
-                    // if (urb_packet_header.bus_id == 3 && urb_packet_header.device == 4 && urb_packet_header.data_length > 0) {
-                    //     print!("{}", String::from_utf8_lossy(urb_packet_data));
-                    // }
-                    
-                    /* Get Terminal Size */
-                    let (t_width, t_height) = crossterm::terminal::size().unwrap();
-
+                    let (t_width, _) = crossterm::terminal::size().unwrap(); /* Get Terminal Size */
                     self.rows.push(Row::new(vec![
                         (self.rows.len() + 1).to_string(),
-                        transmission.bus_id.to_string(),
-                        transmission.dev_id.to_string(),
-                        if transmission.pkt_direction == true {
+                        format!("{:03}", transmission.urbx_header.bus_id),
+                        format!("{:03}", transmission.urbx_header.device_id),
+                        
+                        /* Transmission Direction */
+                        if (transmission.urbx_header.endpoint_info & 0b10000000) == 0 {
                             String::from("To Device")
                         } else {
                             String::from("To Host")

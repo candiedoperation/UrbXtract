@@ -17,58 +17,25 @@
 */
 
 use std::collections::HashMap;
-
-use crate::sniffer::UrbXractPacket;
 use tokio::sync::mpsc::Sender;
-
 use super::{ReconstructedTransmission, ReconstructionModule};
-
-struct SerialDatastore {
-    construct_sources: Vec<UrbXractPacket>,
-    combined_payload: String,
-    pkt_direction: bool,
-    dev_id: u16,
-    bus_id: u16,
-}
 
 pub struct Reconstructor {
     module_tx: Sender<ReconstructedTransmission>,
-    datastore: HashMap<String, SerialDatastore>, /* DeviceId, DataStore */
+    datastore: HashMap<String, ReconstructedTransmission>, /* DeviceId, DataStore */
 }
 
 impl Reconstructor {
     async fn dispatch_packet(&mut self, device_id: String) {
         /* Dispatch the Constructed Datastore */
-        match self.datastore.get(&device_id) {
+        match self.datastore.remove(&device_id) {
             None => return,
             Some(dispatch_data) => {
-                let send_request = self.module_tx.send(ReconstructedTransmission {
-                    combined_payload: dispatch_data.combined_payload.clone(),
-                    bus_id: dispatch_data.bus_id,
-                    dev_id: dispatch_data.dev_id,
-                    pkt_direction: dispatch_data.pkt_direction, 
-                    sources: vec![], /* For now, we'd prolly need Box<> for efficiency */
-                });
-
-                /* Wait for the request to succeed */
-                send_request.await.unwrap();
-                self.datastore.insert(
-                    String::from(device_id),
-                    SerialDatastore {
-                        construct_sources: vec![],
-                        combined_payload: String::from(""),
-                        pkt_direction: false,
-                        dev_id: 0,
-                        bus_id: 0,
-                    }
-                );
+                /* Transmit the Data */
+                self.module_tx.send(dispatch_data).await.unwrap();
             }
         }
     }
-}
-
-fn get_endpoint_direction(endpoint: &u8) -> bool {
-    return endpoint & 0x0F != 0;
 }
 
 impl ReconstructionModule for Reconstructor {
@@ -85,50 +52,48 @@ impl ReconstructionModule for Reconstructor {
         let strbuild_result = String::from_utf8(urb_data.to_vec());
 
         /* Construct Datastore */
-        let device_id = &format!("{}:{}", urb_header.bus_id, urb_header.device_id);
-        if !self.datastore.contains_key(device_id) {
-            self.datastore.insert(
-                String::from(device_id),
-                SerialDatastore {
-                    construct_sources: vec![],
-                    combined_payload: String::from(""),
-                    pkt_direction: false,
-                    dev_id: urb_header.device_id,
-                    bus_id: urb_header.bus_id,
-                },
-            );
-        }
-
-        let datastore = self.datastore.get(device_id).unwrap();
+        let device_id = &format!("{}:{}:{}", urb_header.bus_id, urb_header.device_id, (urb_header.endpoint_info & 0b10000000 == 0));
+        let datastore = self.datastore.get(device_id);
+        
         if strbuild_result.is_err() {
-            if datastore.combined_payload != "" {
+            if datastore.is_some() {
                 /* We have data from previous packets, dispatch it */
                 self.dispatch_packet(String::from(device_id)).await;
+            } else {
+                /* Build a new Packet */
+                self.datastore.insert(
+                    String::from(device_id),
+                    ReconstructedTransmission {
+                        urbx_header: urb_packet.header,
+                        combined_payload: String::from("(Non-UTF8 Binary Data)"),
+                        sources: vec![], /* Should have URB Packet? */
+                    }
+                );
+
+                /* Dispatch the Packet */
+                self.dispatch_packet(String::from(device_id)).await;
             }
-
-            /* Construct New datastore */
-            self.datastore.insert(
-                String::from(device_id),
-                SerialDatastore {
-                    pkt_direction: false,
-                    dev_id: urb_header.device_id,
-                    bus_id: urb_header.bus_id,
-                    construct_sources: vec![urb_packet],
-                    combined_payload: String::from("Non-UTF8 Binary Data"),
-                },
-            );
-
-            /* Dispatch the Packet */
-            self.dispatch_packet(String::from(device_id)).await;
         } else {
             /* We have a valid UTF8 Serial String */
             let parsed_strdata = strbuild_result.unwrap();
-            
-            /* Expand existing datastore */
-            let datastore = self.datastore.get_mut(device_id).unwrap();
-            datastore.combined_payload += &parsed_strdata;
-            datastore.construct_sources.push(urb_packet);
-            
+
+            /* Check Datastore, Create one if it doesn't exist */
+            if datastore.is_none() {
+                self.datastore.insert(
+                    String::from(device_id), 
+                    ReconstructedTransmission {
+                        urbx_header: urb_packet.header,
+                        combined_payload: parsed_strdata.clone(),
+                        sources: vec![], /* Figure this out! */
+                    }
+                );
+            } else {
+                /* Expand the Previous String */
+                let datastore_mut = self.datastore.get_mut(device_id).unwrap();
+                datastore_mut.combined_payload += &parsed_strdata;
+                // datastore_mut.sources.push(something_here);
+            }
+
             /* If \r\n or \n, dispatch the packet */
             if parsed_strdata.ends_with("\n") {
                 self.dispatch_packet(String::from(device_id)).await;

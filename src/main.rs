@@ -24,7 +24,6 @@ mod reconstructor;
 
 
 use clap::Parser;
-use ratatui::Terminal;
 use reconstructor::ReconstructedTransmission;
 use sniffer::{PacketCaptureImpl, UrbXractPacket};
 use tokio::sync::mpsc;
