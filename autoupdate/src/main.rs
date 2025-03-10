@@ -16,7 +16,6 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. 
 */
 
-use chrono::{DateTime, Utc};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{env, fs};
@@ -37,7 +36,6 @@ pub struct AutoUpdater {
     repo_owner: String,
     repo_name: String,
     current_version: Version,
-    last_check: Option<DateTime<Utc>>,
     binary_name: String,
 }
 
@@ -47,7 +45,6 @@ impl AutoUpdater {
             repo_owner: repo_owner.to_string(),
             repo_name: repo_name.to_string(),
             current_version: Version::parse(current_version).unwrap(),
-            last_check: None,
             binary_name: binary_name.to_string(),
         }
     }
