@@ -160,6 +160,25 @@ impl PacketCaptureImpl for PacketCapture {
         .unwrap();
     }
     
+    fn get_connected_devices_list(device_name: String) -> Vec<String> {
+        let usbpcap_devlist = Command::new(USBPCAP_PATH)
+            .arg(format!("--extcap-interface {}", device_name))
+            .arg("--extcap-config")
+            .output()
+            .unwrap();
+
+        // Regex to match lines with parent and extract the display field
+        // let re = Regex::new(r"\{display=([^}]+)\}").unwrap();
+        // let devices: Vec<String> = re
+        //     .captures_iter(&String::from_utf8_lossy(&usbpcap_devlist.stdout))
+        //     .map(|cap| cap[1].to_string())
+        //     .collect();
+
+        // // Print the result
+        // println!("{:?}", devices);
+        return vec![]
+    }
+
     fn get_devices_list() -> Vec<String> {
         let usbpcap_enumlist = Command::new(USBPCAP_PATH)
             .arg("--extcap-interfaces")
@@ -167,9 +186,9 @@ impl PacketCaptureImpl for PacketCapture {
             .unwrap();
 
         let devicelist_encoded = String::from_utf8_lossy(&usbpcap_enumlist.stdout).to_string();
-        let re = Regex::new(r"display=([^}]*)").unwrap();
+        let re = Regex::new(r"value=([^}]*)").unwrap();
         let device_names: Vec<String> = re.captures_iter(&devicelist_encoded)
-            .map(|cap| cap[1].to_string())
+            .map(|cap| cap[1].trim_start_matches(r"\\.\").to_string())
             .collect();
 
         return device_names;

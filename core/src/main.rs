@@ -58,7 +58,13 @@ async fn main() {
             "Available Capture Interfaces:\n{}\n", 
             PacketCapture::get_devices_list()
                 .iter()
-                .fold(String::from(""), |acc, dev| acc + &format!("✲  {}\n", dev))
+                .fold(
+                    String::from(""), 
+                    |acc, dev| {
+                        PacketCapture::get_connected_devices_list(dev.to_string());
+                        acc + &format!("✲  {}\n", dev)
+                    }
+                )
         );
 
         /* Print Usage and return */

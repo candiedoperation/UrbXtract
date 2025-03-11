@@ -151,4 +151,8 @@ impl PacketCaptureImpl for PacketCapture {
     fn get_devices_list() -> Vec<String> {
         return vec![]
     }
+
+    fn get_connected_devices_list(device_name: String) -> Vec<String> {
+        return vec![]
+    }
 }

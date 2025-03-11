@@ -28,7 +28,7 @@ cfg_if::cfg_if! {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct UrbXractHeader {
     pub bus_id: u16,
     pub device_id: u16,
@@ -44,6 +44,7 @@ pub struct UrbXractPacket {
 pub(crate) trait PacketCaptureImpl {
     async fn capture_core(device_name: String, tx: Sender<UrbXractPacket>);
     fn get_devices_list() -> Vec<String>;
+    fn get_connected_devices_list(device_name: String) -> Vec<String>;
 }
 
 pub fn capture(device_name: String, tx: Sender<UrbXractPacket>) -> tokio::task::JoinHandle<()> {

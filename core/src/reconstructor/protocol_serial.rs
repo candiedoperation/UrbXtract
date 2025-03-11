@@ -18,6 +18,8 @@
 
 use std::collections::HashMap;
 use tokio::sync::mpsc::Sender;
+use crate::sniffer::UrbXractPacket;
+
 use super::{ReconstructedTransmission, ReconstructionModule};
 
 pub struct Reconstructor {
@@ -66,7 +68,7 @@ impl ReconstructionModule for Reconstructor {
                     ReconstructedTransmission {
                         urbx_header: urb_packet.header,
                         combined_payload: String::from("(Non-UTF8 Binary Data)"),
-                        sources: vec![], /* Should have URB Packet? */
+                        sources: vec![urb_packet], /* Should have URB Packet? */
                     }
                 );
 
@@ -84,14 +86,24 @@ impl ReconstructionModule for Reconstructor {
                     ReconstructedTransmission {
                         urbx_header: urb_packet.header,
                         combined_payload: parsed_strdata.clone(),
-                        sources: vec![], /* Figure this out! */
+                        sources: vec![
+                            UrbXractPacket { 
+                                header: urb_packet.header, 
+                                data: None 
+                            }
+                        ],
                     }
                 );
             } else {
                 /* Expand the Previous String */
                 let datastore_mut = self.datastore.get_mut(device_id).unwrap();
                 datastore_mut.combined_payload += &parsed_strdata;
-                // datastore_mut.sources.push(something_here);
+                datastore_mut.sources.push(
+                    UrbXractPacket {
+                        header: urb_packet.header,
+                        data: None
+                    }
+                );
             }
 
             /* If \r\n or \n, dispatch the packet */
