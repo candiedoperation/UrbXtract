@@ -20,6 +20,7 @@ use std::{process::Command, ptr};
 
 use super::{PacketCaptureImpl, UrbXractHeader, UrbXractPacket};
 use pcap_parser::{traits::PcapReaderIterator, LegacyPcapReader, PcapError};
+use regex::Regex;
 use tokio::net::windows::named_pipe::ServerOptions;
 use tokio_util::io::SyncIoBridge;
 
@@ -165,7 +166,12 @@ impl PacketCaptureImpl for PacketCapture {
             .output()
             .unwrap();
 
-        let devicelist_encoded = String::from_utf8_lossy(&usbpcap_enumlist.stdout);
-        return vec![devicelist_encoded.to_string()];
+        let devicelist_encoded = String::from_utf8_lossy(&usbpcap_enumlist.stdout).to_string();
+        let re = Regex::new(r"display=([^}]*)").unwrap();
+        let device_names: Vec<String> = re.captures_iter(&devicelist_encoded)
+            .map(|cap| cap[1].to_string())
+            .collect();
+
+        return device_names;
     }
 }
